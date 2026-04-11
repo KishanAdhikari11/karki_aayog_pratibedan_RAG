@@ -1,11 +1,6 @@
-help:
-	@echo 
-	@echo "install				-- install backend dependencies"
-	@echo "lint 				-- linting"
-	@echo "format				-- formatter"
-	@echo "type					-- type checker"
-	@echo "dev					-- start backend development"
-
+.PHONY: all
+all:
+	install lint format typecheck
 
 .PHONY: install
 install:
@@ -13,17 +8,16 @@ install:
 
 .PHONY:lint
 lint:
-	uv run ruff check .
+	uv run ruff check 
 
 .PHONY:format
 format:
 	uv run ruff check --fix .
 	uv run ruff format .
 
-.PHONY:type
-type:
-	uv run mypy .
-
+.PHONY:typecheck
+typecheck:
+	uv run  ty check .
 
 .PHONY:dev
 dev:
