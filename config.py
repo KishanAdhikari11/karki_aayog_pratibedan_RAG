@@ -9,6 +9,7 @@ class Config:
     DB_PASSWORD = os.getenv("DB_PASSWORD", "fastapi-password")
     DB_HOST = os.getenv("DB_HOST", "localhost:5432")
     DB_NAME = os.getenv("DB_NAME", "fastapi")
+    REDIS_URL = os.getenv("REDIS_URL", "")
 
     DB_CONFIG = os.getenv(
         "DB_CONFIG",
