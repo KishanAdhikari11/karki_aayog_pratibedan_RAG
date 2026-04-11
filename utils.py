@@ -3,7 +3,6 @@ import json
 from datetime import datetime
 from typing import Optional
 from sentence_transformers import SentenceTransformer
-import asyncio
 
 
 __logger: Optional[logging.Logger] = None
@@ -40,8 +39,7 @@ def get_logger() -> logging.Logger:
     __logger = logger
     return logger
 
-
-async def generate_embeddings(
+def generate_embeddings(
     texts: list[str], model: SentenceTransformer
 ) -> list[list[float]]:
-    return await asyncio.to_thread(model.encode(texts, show_progress_bar=False).tolist())
+    return model.encode(texts, show_progress_bar=False).tolist()
