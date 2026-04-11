@@ -1,86 +1,61 @@
 import json
-from datetime import datetime
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sentence_transformers import SentenceTransformer
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-
+from chunking import chunk_all_pages
 from models import Embedding
-from utils import get_logger, clean_text_pipeline
 from toc_processor import TOCProcessor
+from utils import generate_embeddings, get_logger
 
 logger = get_logger()
 
+_EMBED_BATCH_SIZE = 64
+
 
 async def ingest_json_data(
-    json_file: str = "data.json",
-    toc_file: str = "toc.json",
-    db: AsyncSession = None,
-    model: SentenceTransformer = None
-):
-    if db is None or model is None:
-        raise ValueError("db and model are required")
+    json_file: str,
+    toc_file: str,
+    db: AsyncSession,
+    model: SentenceTransformer,
+    sentences_per_chunk: int = 4,
+    overlap: int = 1,
+) -> int:
 
-    toc_processor = TOCProcessor(toc_file)
-    logger.info(f" TOC Loaded: {toc_processor.report_title} | Total pages in TOC: {toc_processor.total_pages}")
+    logger.info(f"Loading pages from {json_file}")
+    with open(json_file, encoding="utf-8") as f:
+        pages: list[dict] = json.load(f)
 
-    with open(json_file, "r", encoding="utf-8") as f:
-        data = json.load(f)
+    logger.info(f"Loading TOC from {toc_file}")
+    toc = TOCProcessor(toc_file)
 
-    logger.info(f"Starting ingestion of {len(data)} items from {json_file}")
-
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=500,
-        chunk_overlap=100,
-        separators=["\n\n", "\u0964", "\u0964 ", ". "]
+    logger.info("Chunking pages...")
+    all_chunks = chunk_all_pages(
+        pages=pages,
+        toc_processor=toc,
+        sentences_per_chunk=sentences_per_chunk,
+        overlap=overlap,
     )
+    logger.info(f"Total chunks: {len(all_chunks)} from {len(pages)} pages")
 
-    total_chunks = 0
+    texts = [c["text"] for c in all_chunks]
+    all_embeddings: list[list[float]] = []
 
-    for item in data:
-        raw_text = item.get("content", "")
-        page_no = item.get("page_no")
+    for i in range(0, len(texts), _EMBED_BATCH_SIZE):
+        batch = texts[i : i + _EMBED_BATCH_SIZE]
+        batch_embeddings = await generate_embeddings(batch, model)
+        all_embeddings.extend(batch_embeddings)
+        logger.info(f"Embedded {min(i + _EMBED_BATCH_SIZE, len(texts))}/{len(texts)}")
 
-        if not raw_text or not str(raw_text).strip():
-            continue
-
-        clean_text = clean_text_pipeline(raw_text)
-        paragraphs = [p.strip() for p in clean_text.split("\n\n") if p.strip()]
-
-        chunks = []
-        for para in paragraphs:
-            chunks.extend(text_splitter.split_text(para))
-
-        if not chunks:
-            continue
-
-        metadata = toc_processor.get_metadata_for_page(page_no)
-
-        logger.info(f"DEBUG - Page {page_no} | Metadata: {metadata}")
-
-        embedding_source = {
-            "source": json_file,
-            "page_no": page_no,
-            **metadata
-        }
-
-        embedding_vectors = model.encode(chunks, show_progress_bar=False).tolist()
-
-        db_entries = []
-        for chunk, vector in zip(chunks, embedding_vectors):
-            entry = Embedding(
-                text=chunk,
-                embedding=vector,
-                created_at=datetime.utcnow().isoformat(),
-                embedding_source=embedding_source
-            )
-            db_entries.append(entry)
-
-        db.add_all(db_entries)
-        await db.flush()
-
-        total_chunks += len(chunks)
-
+    db_objects = [
+        Embedding(
+            text=chunk["text"],
+            embedding=embedding,
+            embedding_source=chunk["source"],
+        )
+        for chunk, embedding in zip(all_chunks, all_embeddings)
+    ]
+    db.add_all(db_objects)
     await db.commit()
-    logger.info(f" Ingestion finished. Total chunks: {total_chunks}")
-    
 
+    logger.info(f"Ingestion complete: {len(db_objects)} chunks stored")
+    return len(db_objects)

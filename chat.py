@@ -1,68 +1,68 @@
-from fastapi import APIRouter, status, Depends
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Annotated
 
-from dependencies import ChatState, ChatContext, chatbot
+from chatbot_workflow import ChatContext, chatbot, make_initial_state
 from database import get_db
 from schemas import ErrorResponseSchema
-from langchain_core.prompts import ChatPromptTemplate
-from langchain.chat_models import init_chat_model
+from utils import get_logger
 
+logger = get_logger()
 
 router = APIRouter(
     responses={
         status.HTTP_429_TOO_MANY_REQUESTS: {
             "model": ErrorResponseSchema,
-            "description": "Rate limit exceed",
+            "description": "Rate limit exceeded",
         },
     },
 )
 
 
+def _get_model(request: Request):
+    model = getattr(request.app.state, "model", None)
+    if model is None:
+        raise HTTPException(status_code=500, detail="Embedding model not loaded")
+    return model
+
+
+def _get_llm(request: Request):
+    llm = getattr(request.app.state, "llm", None)
+    if llm is None:
+        raise HTTPException(status_code=500, detail="LLM not loaded")
+    return llm
+
+
 @router.post("/chat")
-async def chat(query: str, db: Annotated[AsyncSession, Depends(get_db)]):
-    
-    initial_state: ChatState = {
-        "prompt": ChatPromptTemplate.from_template(
-       """You are a precise assistant. Answer ONLY using the provided context.
-If the context doesn't contain enough info, say "I don't have sufficient information."
-Be concise and accurate. Cite the page/source when possible.
+async def chat(
+    request: Request,
+    query: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    top_k: int =7,
+):
 
-Context:
-{context}
+    model = _get_model(request)
+    llm = _get_llm(request)
 
-Question: {query}
-Answer:"""
-        ),
-        "query": query,
-        "top_k": 8,
-        "embedding_source": None,
-        "retrieved_chunks": [],
-        "answer": "",
-        "context": None,
-    }
+    initial_state = make_initial_state(query=query, top_k=top_k)
 
     runtime_context: ChatContext = {
         "db": db,
-        "llm": init_chat_model("gemini-3-flash-preview", model_provider="google_genai"),
-        "model": None,   
+        "llm": llm,
+        "model": model,
     }
 
     try:
-        from main import app
-        runtime_context["model"] = getattr(app.state, "model", None)
-    except Exception:
-        pass  # fallback - model will be None
-
-    if not runtime_context.get("model"):
-        return {"error": "Embedding model not loaded. Please restart the server."}
-
-    final_state = await chatbot.ainvoke(
-        input=initial_state,
-        context=runtime_context
-    )
+        final_state = await chatbot.ainvoke(
+            input=initial_state,
+            context=runtime_context,
+        )
+    except Exception as e:
+        logger.error(f"Chat pipeline failed: {e}")
+        raise HTTPException(status_code=500, detail="Chat pipeline error")
 
     return {
-        "answer": final_state.get("answer", "Sorry, something went wrong."),
-        "retrieved_chunks": final_state.get("retrieved_chunks", [])
+        "answer": final_state.get("answer", "Something went wrong."),
+        "retrieved_chunks": final_state.get("retrieved_chunks", []),
+        "query": query,
     }
