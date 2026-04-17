@@ -13,14 +13,14 @@ from database import sessionmanager
 from internal import router as ingestion_router
 from limiter import limiter
 from utils import get_logger
+from langchain_ollama import ChatOllama
 
 logger = get_logger()
 
 _EMBED_MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 _EMBED_MODEL_PATH = Path("models") / _EMBED_MODEL_NAME
 
-_LLM_MODEL = "gemini-2.5-flash"
-_LLM_PROVIDER = "google_genai"
+_LLM_MODEL = "qwen3.5:0.8b"
 
 
 @asynccontextmanager
@@ -32,7 +32,7 @@ async def lifespan(app: FastAPI):
     logger.info(f"Loading embedding model from {_EMBED_MODEL_PATH}...")
     app.state.model = SentenceTransformer(str(_EMBED_MODEL_PATH))
 
-    app.state.llm = init_chat_model(_LLM_MODEL, model_provider=_LLM_PROVIDER)
+    app.state.llm = ChatOllama(model=_LLM_MODEL,temperature=0.4,top_p=0.8,num_predict=64)
     logger.info(f"LLM initialized : {_LLM_MODEL}")
 
     yield
@@ -69,4 +69,3 @@ app.include_router(ingestion_router)
 @app.get("/")
 def home():
     return {"message": "Karki Aayog RAG chatbot is running."}
-

@@ -21,4 +21,4 @@ typecheck:
 
 .PHONY:dev
 dev:
-	uv run uvicorn main:app --port 8002 --reload
+	uv run uvicorn main:app --port 8002 

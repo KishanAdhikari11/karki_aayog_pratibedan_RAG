@@ -4,9 +4,9 @@ from typing import Optional
 
 def clean_ocr_noise(text: str) -> str:
     """Clean common OCR artifacts from Nepali text."""
-    text = re.sub(r"  +", " ", text) #remove one or more space
-    
-    text = text.replace("|", "।") 
+    text = re.sub(r"  +", " ", text)  # remove one or more space
+
+    text = text.replace("|", "।")
     # Remove trailing page numbers like \n३ or \n3
     text = re.sub(r"\n\d+\s*$", "", text.strip())
     # Remove standalone digits on their own line (page number artifacts)
@@ -100,11 +100,11 @@ def chunk_all_pages(
     sentences_per_chunk: int = 4,
     overlap: int = 1,
 ) -> list[dict]:
-    
+
     all_chunks = []
 
     for page in pages:
-        page_no = page.get("page_no","")
+        page_no = page.get("page_no", "")
         content = page.get("content", "")
 
         if not content or not content.strip():

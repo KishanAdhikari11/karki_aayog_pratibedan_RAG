@@ -132,7 +132,7 @@ async def hybrid_retrieve(
 ) -> list[Embedding]:
     candidate_limit = top_k * 4
 
-    query_embedding = await generate_embeddings([query], model)
+    query_embedding = generate_embeddings([query], model)
     query_vec = query_embedding[0]
 
     stmt = (

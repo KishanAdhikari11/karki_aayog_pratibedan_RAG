@@ -42,7 +42,7 @@ async def ingest_json_data(
 
     for i in range(0, len(texts), _EMBED_BATCH_SIZE):
         batch = texts[i : i + _EMBED_BATCH_SIZE]
-        batch_embeddings = await generate_embeddings(batch, model)
+        batch_embeddings = generate_embeddings(batch, model)
         all_embeddings.extend(batch_embeddings)
         logger.info(f"Embedded {min(i + _EMBED_BATCH_SIZE, len(texts))}/{len(texts)}")
 

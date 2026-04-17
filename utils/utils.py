@@ -39,6 +39,7 @@ def get_logger() -> logging.Logger:
     __logger = logger
     return logger
 
+
 def generate_embeddings(
     texts: list[str], model: SentenceTransformer
 ) -> list[list[float]]:
