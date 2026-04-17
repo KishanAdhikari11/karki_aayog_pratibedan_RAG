@@ -38,13 +38,32 @@ async def chat(
     request: Request,
     query: str,
     db: Annotated[AsyncSession, Depends(get_db)],
-    top_k: int =7,
+    top_k: int = 7,
 ):
 
     model = _get_model(request)
     llm = _get_llm(request)
 
-    initial_state = make_initial_state(query=query, top_k=top_k)
+    logger.info(f"Received query: {query[:200]}{'...' if len(query) > 200 else ''}")
+
+    # === FORCE NO THINKING MODE FOR QWEN ===
+    # This is the most reliable way that works across most Qwen3 / Qwen2.5 deployments
+    no_think_query = query.strip() + "\n\n/no_think"
+
+    # Optional: Add a very strict instruction at the beginning
+    enhanced_query = (
+        "Answer directly and concisely. "
+        "Do not think step by step. "
+        "Do not use <think> tags or any internal reasoning. "
+        "Go straight to the final answer.\n\n"
+        + no_think_query
+    )
+
+    # Create initial state with the modified query (graph remains untouched)
+    initial_state = make_initial_state(
+        query=enhanced_query,   # <-- only this part is changed
+        top_k=top_k
+    )
 
     runtime_context: ChatContext = {
         "db": db,
@@ -53,16 +72,22 @@ async def chat(
     }
 
     try:
+        logger.info("Starting chatbot graph invocation...")
         final_state = await chatbot.ainvoke(
             input=initial_state,
             context=runtime_context,
         )
+        logger.info("Chatbot graph completed successfully.")
     except Exception as e:
-        logger.error(f"Chat pipeline failed: {e}")
-        raise HTTPException(status_code=500, detail="Chat pipeline error")
+        logger.error(f"Chat pipeline failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Chat pipeline error. Please try again."
+        )
 
     return {
         "answer": final_state.get("answer", "Something went wrong."),
         "retrieved_chunks": final_state.get("retrieved_chunks", []),
-        "query": query,
+        "query": query,                    # return original query to client
+        "used_no_think": True
     }

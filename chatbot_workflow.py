@@ -131,7 +131,7 @@ def _route(state: ChatState) -> str:
     return "node_llm" if state.get("context") else "node_no_context"
 
 
-_workflow = StateGraph(ChatState, context_schema=ChatContext)
+_workflow = StateGraph(ChatState, ChatContext)
 _workflow.add_node("node_translate_and_retrieve", node_translate_and_retrieve)
 _workflow.add_node("node_llm", node_llm)
 _workflow.add_node("node_no_context", node_no_context)
