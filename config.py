@@ -1,19 +1,18 @@
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class Config:
-    DB_USER = os.getenv("DB_USER", "fastapi")
-    DB_PASSWORD = os.getenv("DB_PASSWORD", "fastapi-password")
-    DB_HOST = os.getenv("DB_HOST", "localhost:5432")
-    DB_NAME = os.getenv("DB_NAME", "fastapi")
-
-    DB_CONFIG = os.getenv(
-        "DB_CONFIG",
-        f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}",
+class Config(BaseSettings):
+    DB_USER : str
+    DB_PASSWORD : str
+    DB_HOST : str
+    DB_NAME : str
+    REDIS_URL : str
+    model_config=SettingsConfigDict(
+        env_file='.env',env_file_encoding='utf-8'
+        
     )
+    
+
 
 
 config = Config()

@@ -20,11 +20,11 @@ format:
 	uv run ruff check --fix .
 	uv run ruff format .
 
-.PHONY:type
-type:
-	uv run mypy .
+.PHONY:typecheck
+typecheck:
+	uvx  ty check
 
 
 .PHONY:dev
 dev:
-	uv run uvicorn main:app --port 8002 --reload
+	uv run uvicorn main:app --port 8000 --reload

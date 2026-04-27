@@ -20,3 +20,12 @@ class EmbeddingModelError(Exception):
 
 class ErrorResponseSchema(BaseModel):
     description: str
+
+
+class EmbeddingRequest(BaseModel):
+    json_path: str
+    toc_path: str
+
+
+class EmbeddingResponse(BaseModel):
+    status: str
