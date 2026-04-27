@@ -99,7 +99,7 @@ GOOGLE_API_KEY=your_gemini_api_key
 ### Ingest the Document
 
 ```bash
-curl -X POST "http://localhost:8000/internal/ingest-json?json_file=document/data.json&toc_file=document/toc.json"
+curl -X POST "http://localhost:8000/internal/ingest-json"
 ```
 
  Ingestion runs once and takes ~45 minutes on CPU for the full 900-page document. Data persists in PostgreSQL after ingestion.
