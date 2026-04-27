@@ -1,22 +1,18 @@
-from sentence_transformers import SentenceTransformer
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from database import sessionmanager
-from utils import get_logger
-from models import Base
+from utils.util import get_logger
 from pathlib import Path
 from schemas import EmbeddingModelError
-from chat import router as chat_router
-from internal import router as ingestion_router
-import logging
-
+from routes.chat import router as chat_router
+from routes.internal import router as ingestion_router
+from fastembed import TextEmbedding
 
 logger = get_logger()
-logging.getLogger("transformers").setLevel(logging.ERROR)
 
 
-_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-_MODEL_PATH = Path("models") / _MODEL
+_MODEL = "intfloat/multilingual-e5-large"
+_CACHE_DIR = Path("models")
 
 
 @asynccontextmanager
@@ -26,8 +22,8 @@ async def lifespan(app: FastAPI):
         await sessionmanager.create_all(connection)
 
     try:
-        logger.info(f"Loading model from {_MODEL_PATH}...")
-        model = SentenceTransformer(str(_MODEL_PATH))
+        logger.info(f"Loading model {_MODEL}...")
+        model = TextEmbedding(model_name=_MODEL, cache_dir=str(_CACHE_DIR))
         app.state.model = model
         yield
 
