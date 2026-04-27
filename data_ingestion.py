@@ -1,27 +1,28 @@
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
-from sentence_transformers import SentenceTransformer
+from fastembed import TextEmbedding
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-
 from models import Embedding
-from utils import get_logger, clean_text_pipeline
-from toc_processor import TOCProcessor
+from utils.util import get_logger, clean_text_pipeline
+from utils.toc_processor import TOCProcessor
 
 logger = get_logger()
 
 
 async def ingest_json_data(
-    json_file: str = "data.json",
-    toc_file: str = "toc.json",
-    db: AsyncSession = None,
-    model: SentenceTransformer = None
+    db: AsyncSession,
+    model: TextEmbedding,
+    json_file: str = "document/data.json",
+    toc_file: str = "document/toc.json",
 ):
     if db is None or model is None:
         raise ValueError("db and model are required")
 
     toc_processor = TOCProcessor(toc_file)
-    logger.info(f" TOC Loaded: {toc_processor.report_title} | Total pages in TOC: {toc_processor.total_pages}")
+    logger.info(
+        f" TOC Loaded: {toc_processor.report_title} | Total pages in TOC: {toc_processor.total_pages}"
+    )
 
     with open(json_file, "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -29,9 +30,9 @@ async def ingest_json_data(
     logger.info(f"Starting ingestion of {len(data)} items from {json_file}")
 
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=500,
-        chunk_overlap=100,
-        separators=["\n\n", "\u0964", "\u0964 ", ". "]
+        chunk_size=1000,
+        chunk_overlap=200,
+        separators=["\n\n", "\u0964", "\u0964 ", ". "],
     )
 
     total_chunks = 0
@@ -57,21 +58,17 @@ async def ingest_json_data(
 
         logger.info(f"DEBUG - Page {page_no} | Metadata: {metadata}")
 
-        embedding_source = {
-            "source": json_file,
-            "page_no": page_no,
-            **metadata
-        }
+        embedding_source = {"source": json_file, "page_no": page_no, **metadata}
 
-        embedding_vectors = model.encode(chunks, show_progress_bar=False).tolist()
+        embedding_vectors = list(model.embed(chunks, batch_size=32))
 
         db_entries = []
         for chunk, vector in zip(chunks, embedding_vectors):
             entry = Embedding(
                 text=chunk,
                 embedding=vector,
-                created_at=datetime.utcnow().isoformat(),
-                embedding_source=embedding_source
+                created_at=datetime.now(timezone.utc).isoformat(),
+                embedding_source=embedding_source,
             )
             db_entries.append(entry)
 
@@ -82,5 +79,3 @@ async def ingest_json_data(
 
     await db.commit()
     logger.info(f" Ingestion finished. Total chunks: {total_chunks}")
-    
-

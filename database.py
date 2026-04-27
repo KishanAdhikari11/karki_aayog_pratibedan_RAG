@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     async_sessionmaker,
 )
-from utils import get_logger
+from utils.util import get_logger
 from config import config
 from models import Base
 from sqlalchemy import text
